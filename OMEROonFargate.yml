@@ -1,0 +1,476 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Conditions:
+  CreateCluster: !Equals
+    - ''
+    - !Ref 'ParameterClusterName'
+  CreateLoadBalancer: !Equals
+    - ''
+    - !Ref 'ParameterLoadBalancerARN'
+Description: CloudFormation template created by Docker for deploying applications
+  on Amazon ECS
+Parameters:
+  ParameterClusterName:
+    Description: Name of the ECS cluster to deploy to (optional)
+    Type: String
+  ParameterLoadBalancerARN:
+    Description: Name of the LoadBalancer to connect to (optional)
+    Type: String
+  ParameterSubnet1Id:
+    Description: SubnetId, for Availability Zone 1 in the region in your VPC
+    Type: AWS::EC2::Subnet::Id
+  ParameterSubnet2Id:
+    Description: SubnetId, for Availability Zone 2 in the region in your VPC
+    Type: AWS::EC2::Subnet::Id
+  ParameterVPCId:
+    Description: ID of the VPC
+    Type: AWS::EC2::VPC::Id
+Resources:
+  CloudMap:
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+    Properties:
+      Description: Service Map for Docker Compose project dockerexampleomero
+      Name: dockerexampleomero.local
+      Vpc: !Ref 'ParameterVPCId'
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Condition: CreateCluster
+    Properties:
+      ClusterName: dockerexampleomero
+      Tags:
+        - Key: com.docker.compose.project
+          Value: dockerexampleomero
+  DatabaseService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !If
+        - CreateCluster
+        - !Ref 'Cluster'
+        - !Ref 'ParameterClusterName'
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      DeploymentController:
+        Type: ECS
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref 'DockerexampleomeroOmeroNetwork'
+          Subnets:
+            - !Ref 'ParameterSubnet1Id'
+            - !Ref 'ParameterSubnet2Id'
+      PropagateTags: SERVICE
+      SchedulingStrategy: REPLICA
+      ServiceRegistries:
+        - RegistryArn: !GetAtt 'DatabaseServiceDiscoveryEntry.Arn'
+      Tags:
+        - Key: com.docker.compose.project
+          Value: dockerexampleomero
+        - Key: com.docker.compose.service
+          Value: database
+      TaskDefinition: !Ref 'DatabaseTaskDefinition'
+  DatabaseServiceDiscoveryEntry:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Description: '"database" service discovery entry in Cloud Map'
+      DnsConfig:
+        DnsRecords:
+          - TTL: 60
+            Type: A
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: database
+      NamespaceId: !Ref 'CloudMap'
+  DatabaseTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Environment:
+            - Name: POSTGRES_DB
+              Value: omero
+            - Name: POSTGRES_PASSWORD
+              Value: omero
+            - Name: LOCALDOMAIN
+              Value: !Join
+                - ''
+                - - !Ref 'AWS::Region'
+                  - .compute.internal
+                  - ' dockerexampleomero.local'
+            - Name: POSTGRES_USER
+              Value: omero
+          Essential: true
+          Image: postgres:11
+          LinuxParameters: {}
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref 'LogGroup'
+              awslogs-region: !Ref 'AWS::Region'
+              awslogs-stream-prefix: dockerexampleomero
+          Name: database
+      Cpu: '2048'
+      Memory: '4096'
+      ExecutionRoleArn: !Ref 'DatabaseTaskExecutionRole'
+      Family: dockerexampleomero-database
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+  DatabaseTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+        Version: '2012-10-17'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+  DockerexampleomeroLoadBalancer:
+    Condition: CreateLoadBalancer
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: DockerexampleomeroLoadBalancer
+      Scheme: internet-facing
+      Subnets:
+        - !Ref 'ParameterSubnet1Id'
+        - !Ref 'ParameterSubnet2Id'
+      Tags:
+        - Key: com.docker.compose.project
+          Value: dockerexampleomero
+      Type: network
+  DockerexampleomeroOmeroNetwork:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: dockerexampleomero omero Security Group
+      GroupName: DockerexampleomeroOmeroNetwork
+      SecurityGroupIngress:
+        - CidrIp: '0.0.0.0/0'
+          Description: omeroserver:4063/tcp
+          FromPort: 4063
+          IpProtocol: TCP
+          ToPort: 4063
+        - CidrIp: '0.0.0.0/0'
+          Description: omeroserver:4064/tcp
+          FromPort: 4064
+          IpProtocol: TCP
+          ToPort: 4064
+        - CidrIp: '0.0.0.0/0'
+          Description: omeroweb:4080/tcp
+          FromPort: 4080
+          IpProtocol: TCP
+          ToPort: 4080
+      Tags:
+        - Key: com.docker.compose.project
+          Value: dockerexampleomero
+        - Key: com.docker.compose.network
+          Value: omero
+      VpcId: !Ref 'ParameterVPCId'
+  DockerexampleomeroOmeroNetworkIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Allow communication within network omero
+      GroupId: !Ref 'DockerexampleomeroOmeroNetwork'
+      IpProtocol: '-1'
+      SourceSecurityGroupId: !Ref 'DockerexampleomeroOmeroNetwork'
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /docker-compose/dockerexampleomero
+  OmeroserverService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - OmeroserverTCP4063Listener
+      - OmeroserverTCP4064Listener
+    Properties:
+      Cluster: !If
+        - CreateCluster
+        - !Ref 'Cluster'
+        - !Ref 'ParameterClusterName'
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      DeploymentController:
+        Type: ECS
+      DesiredCount: 1
+      LaunchType: FARGATE
+      LoadBalancers:
+        - ContainerName: omeroserver
+          ContainerPort: 4063
+          TargetGroupArn: !Ref 'OmeroserverTCP4063TargetGroup'
+        - ContainerName: omeroserver
+          ContainerPort: 4064
+          TargetGroupArn: !Ref 'OmeroserverTCP4064TargetGroup'
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref 'DockerexampleomeroOmeroNetwork'
+          Subnets:
+            - !Ref 'ParameterSubnet1Id'
+            - !Ref 'ParameterSubnet2Id'
+      PropagateTags: SERVICE
+      SchedulingStrategy: REPLICA
+      ServiceRegistries:
+        - RegistryArn: !GetAtt 'OmeroserverServiceDiscoveryEntry.Arn'
+      Tags:
+        - Key: com.docker.compose.project
+          Value: dockerexampleomero
+        - Key: com.docker.compose.service
+          Value: omeroserver
+      TaskDefinition: !Ref 'OmeroserverTaskDefinition'
+  OmeroserverServiceDiscoveryEntry:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Description: '"omeroserver" service discovery entry in Cloud Map'
+      DnsConfig:
+        DnsRecords:
+          - TTL: 60
+            Type: A
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: omeroserver
+      NamespaceId: !Ref 'CloudMap'
+  OmeroserverTCP4063Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - ForwardConfig:
+            TargetGroups:
+              - TargetGroupArn: !Ref 'OmeroserverTCP4063TargetGroup'
+          Type: forward
+      LoadBalancerArn: !If
+        - CreateLoadBalancer
+        - !Ref 'DockerexampleomeroLoadBalancer'
+        - !Ref 'ParameterLoadBalancerARN'
+      Port: 4063
+      Protocol: TCP
+  OmeroserverTCP4063TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 4063
+      Protocol: TCP
+      Tags:
+        - Key: com.docker.compose.project
+          Value: dockerexampleomero
+      TargetType: ip
+      VpcId: !Ref 'ParameterVPCId'
+  OmeroserverTCP4064Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - ForwardConfig:
+            TargetGroups:
+              - TargetGroupArn: !Ref 'OmeroserverTCP4064TargetGroup'
+          Type: forward
+      LoadBalancerArn: !If
+        - CreateLoadBalancer
+        - !Ref 'DockerexampleomeroLoadBalancer'
+        - !Ref 'ParameterLoadBalancerARN'
+      Port: 4064
+      Protocol: TCP
+  OmeroserverTCP4064TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 4064
+      Protocol: TCP
+      Tags:
+        - Key: com.docker.compose.project
+          Value: dockerexampleomero
+      TargetType: ip
+      VpcId: !Ref 'ParameterVPCId'
+  OmeroserverTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Environment:
+            - Name: CONFIG_omero_db_host
+              Value: database
+            - Name: CONFIG_omero_db_user
+              Value: omero
+            - Name: CONFIG_omero_db_pass
+              Value: omero
+            - Name: CONFIG_omero_db_name
+              Value: omero
+            - Name: LOCALDOMAIN
+              Value: !Join
+                - ''
+                - - !Ref 'AWS::Region'
+                  - .compute.internal
+                  - ' dockerexampleomero.local'
+            - Name: ROOTPASS
+              Value: omero
+          Essential: true
+          Image: openmicroscopy/omero-server:latest
+          LinuxParameters: {}
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref 'LogGroup'
+              awslogs-region: !Ref 'AWS::Region'
+              awslogs-stream-prefix: dockerexampleomero
+          Name: omeroserver
+          PortMappings:
+            - ContainerPort: 4063
+              HostPort: 4063
+              Protocol: tcp
+            - ContainerPort: 4064
+              HostPort: 4064
+              Protocol: tcp
+      Cpu: '2048'
+      Memory: '4096'
+      ExecutionRoleArn: !Ref 'OmeroserverTaskExecutionRole'
+      Family: dockerexampleomero-omeroserver
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+  OmeroserverTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+        Version: '2012-10-17'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+  OmerowebService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - OmerowebTCP4080Listener
+    Properties:
+      Cluster: !If
+        - CreateCluster
+        - !Ref 'Cluster'
+        - !Ref 'ParameterClusterName'
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      DeploymentController:
+        Type: ECS
+      DesiredCount: 1
+      LaunchType: FARGATE
+      LoadBalancers:
+        - ContainerName: omeroweb
+          ContainerPort: 4080
+          TargetGroupArn: !Ref 'OmerowebTCP4080TargetGroup'
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref 'DockerexampleomeroOmeroNetwork'
+          Subnets:
+            - !Ref 'ParameterSubnet1Id'
+            - !Ref 'ParameterSubnet2Id'
+      PropagateTags: SERVICE
+      SchedulingStrategy: REPLICA
+      ServiceRegistries:
+        - RegistryArn: !GetAtt 'OmerowebServiceDiscoveryEntry.Arn'
+      Tags:
+        - Key: com.docker.compose.project
+          Value: dockerexampleomero
+        - Key: com.docker.compose.service
+          Value: omeroweb
+      TaskDefinition: !Ref 'OmerowebTaskDefinition'
+  OmerowebServiceDiscoveryEntry:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Description: '"omeroweb" service discovery entry in Cloud Map'
+      DnsConfig:
+        DnsRecords:
+          - TTL: 60
+            Type: A
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: omeroweb
+      NamespaceId: !Ref 'CloudMap'
+  OmerowebTCP4080Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - ForwardConfig:
+            TargetGroups:
+              - TargetGroupArn: !Ref 'OmerowebTCP4080TargetGroup'
+          Type: forward
+      LoadBalancerArn: !If
+        - CreateLoadBalancer
+        - !Ref 'DockerexampleomeroLoadBalancer'
+        - !Ref 'ParameterLoadBalancerARN'
+      Port: 4080
+      Protocol: TCP
+  OmerowebTCP4080TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 4080
+      Protocol: TCP
+      Tags:
+        - Key: com.docker.compose.project
+          Value: dockerexampleomero
+      TargetType: ip
+      VpcId: !Ref 'ParameterVPCId'
+  OmerowebTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Environment:
+            - Name: OMEROHOST
+              Value: omeroserver
+            - Name: LOCALDOMAIN
+              Value: !Join
+                - ''
+                - - !Ref 'AWS::Region'
+                  - .compute.internal
+                  - ' dockerexampleomero.local'
+          Essential: true
+          Image: openmicroscopy/omero-web-standalone:latest
+          LinuxParameters: {}
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref 'LogGroup'
+              awslogs-region: !Ref 'AWS::Region'
+              awslogs-stream-prefix: dockerexampleomero
+          Name: omeroweb
+          PortMappings:
+            - ContainerPort: 4080
+              HostPort: 4080
+              Protocol: tcp
+      Cpu: '2048'
+      Memory: '4096'
+      ExecutionRoleArn: !Ref 'OmerowebTaskExecutionRole'
+      Family: dockerexampleomero-omeroweb
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+  OmerowebTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+        Version: '2012-10-17'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+    
+
+Outputs:
+  DockerexampleomeroLoadBalancerDNSName:
+    Description: The DNSName of the DockerexampleomeroLoadBalancer
+    Value: !GetAtt DockerexampleomeroLoadBalancer.DNSName
