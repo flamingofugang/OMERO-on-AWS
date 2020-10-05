@@ -12,7 +12,7 @@ You can use your existing [AWS VPC and Subnet](https://docs.aws.amazon.com/vpc/l
 
 After deployment, the DNS name can be obtained in the outputs of CFN stack: ![dnsname](Figures/deploymentoutput.png)
 
-The Web UI can be accessed through: http://<DNS name>:4080/
+The Web UI can be accessed through: http://DNSname:4080/
 
 If you want to use EC2 launch type for OMERO server instead of Fargate, you can use a different CFN template [OMEROonEC2.yml](https://github.com/flamingofugang/OMERO-on-AWS/blob/master/OMEROonEC2.yml) for 1-click deployment:
 
