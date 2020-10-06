@@ -24,6 +24,11 @@ A modifed CFN template [OMEROonEC2EFSAccessPoint.yml](https://github.com/flaming
 
 [![launchstackbutton](Figures/launchstack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/template?stackName=omeroec2efsstack&templateURL=https://omero-on-aws.s3-us-west-1.amazonaws.com/OMEROonEC2EFSAccessPoint.yml)
 
+
+The PostgreSQL database can run on [Amazon RDS](https://aws.amazon.com/rds/). Another CFN template [OMEROonEC2EFSRDS.yml](https://github.com/flamingofugang/OMERO-on-AWS/blob/master/OMEROonEC2EFSRDS.yml) can be used for 1-click deployment:
+
+[![launchstackbutton](Figures/launchstack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/template?stackName=omeroec2efsstack&templateURL=https://omero-on-aws.s3-us-west-1.amazonaws.com/OMEROonEC2EFSRDS.yml)
+
 The following blog posts and tutorials can be used for references:
 1. [Tutorial on EFS for ECS EC2 launch type](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/tutorial-efs-volumes.html).  
 2. [Blog post on EFS for ECS Fargate](https://aws.amazon.com/blogs/aws/amazon-ecs-supports-efs/).  
