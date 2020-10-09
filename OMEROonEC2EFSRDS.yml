@@ -470,7 +470,7 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash -xe
           echo ECS_CLUSTER=${Cluster} >> /etc/ecs/ecs.config
-          yum install -y aws-cfn-bootstrap
+          yum install -y aws-cfn-bootstrap bzip2 unzip
           /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
   EC2Role:
     Type: AWS::IAM::Role
@@ -487,6 +487,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
   EC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:

@@ -29,6 +29,29 @@ The PostgreSQL database can run on [Amazon RDS](https://aws.amazon.com/rds/). An
 
 [![launchstackbutton](Figures/launchstack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/template?stackName=omeroec2efsstack&templateURL=https://omero-on-aws.s3-us-west-1.amazonaws.com/OMEROonEC2EFSRDS.yml)
 
+To install [AWS CLI](https://aws.amazon.com/cli/) and [omero-py](https://docs.openmicroscopy.org/omero/5.6.0/developers/Python.html) on the EC2 instance running OMERO server container, run the following scripts after login the instance:
+
+`curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"`
+
+`unzip awscliv2.zip` 
+
+`sudo ./aws/install` 
+
+`curl -LO https://anaconda.org/anaconda-adam/adam-installer/4.4.0/download/adam-installer-4.4.0-Linux-x86_64.sh` 
+
+`bash adam-installer-4.4.0-Linux-x86_64.sh -b -p ~/adam` 
+
+`source ~/.bashrc` 
+
+`conda install -c anaconda libstdcxx-ng -y` 
+
+`conda install -c anaconda libgcc-ng -y` 
+
+`conda create -n myenv -c ome python=3.6 bzip2 expat libstdcxx-ng openssl libgcc zeroc-ice36-python omero-py -y` 
+
+`source activate myenv`
+
+
 The following blog posts and tutorials can be used for references:
 1. [Tutorial on EFS for ECS EC2 launch type](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/tutorial-efs-volumes.html).  
 2. [Blog post on EFS for ECS Fargate](https://aws.amazon.com/blogs/aws/amazon-ecs-supports-efs/).  
