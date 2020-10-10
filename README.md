@@ -45,6 +45,14 @@ sudo yum install java-11-amazon-corretto-headless
 source activate myenv
 ```
 
+You can download image from AWS S3 using command:  
+`aws s3 cp s3://xxxxxxxx.svs .`
+
+and then use [OMERO client CLI](https://docs.openmicroscopy.org/omero/5.6.1/users/cli/index.html) on the EC2 instance to [import the image to OMERO](https://docs.openmicroscopy.org/omero/5.4.8/users/cli/import.html):  
+`omero login`  
+provide the DNSname:4046, root and omero
+`omero import ./xxxxxx.svs`
+
 
 The following blog posts and tutorials can be used for references:
 1. [Tutorial on EFS for ECS EC2 launch type](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/tutorial-efs-volumes.html).  
