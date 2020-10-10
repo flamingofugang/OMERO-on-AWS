@@ -41,6 +41,7 @@ echo -e '\n# Anaconda Adam\nexport PATH=~/adam/bin:$PATH' >> ~/.bashrc
 conda install -c anaconda libstdcxx-ng -y 
 conda install -c anaconda libgcc-ng -y  
 conda create -n myenv -c ome python=3.6 bzip2 expat libstdcxx-ng openssl libgcc zeroc-ice36-python omero-py -y   
+sudo yum install java-11-amazon-corretto-headless
 source activate myenv
 ```
 
