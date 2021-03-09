@@ -619,6 +619,10 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
     
 Outputs:
-  DockerexampleomeroLoadBalancerDNSName:
-    Description: The DNSName of the DockerexampleomeroLoadBalancer
-    Value: !GetAtt DockerexampleomeroLoadBalancer.DNSName
+  OMEROLoadBalancerHTTPEnpoint:
+    Description: The HTTP endpoint of the DockerexampleomeroLoadBalancer
+    Value: !Join
+      - ''
+      - - 'http://'
+        - !GetAtt DockerexampleomeroLoadBalancer.DNSName
+        - ':4080'
