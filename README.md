@@ -37,8 +37,8 @@ unzip awscliv2.zip
 sudo ./aws/install  
 curl -LO https://anaconda.org/anaconda-adam/adam-installer/4.4.0/download/adam-installer-4.4.0-Linux-x86_64.sh  
 bash adam-installer-4.4.0-Linux-x86_64.sh -b -p ~/adam  
-source ~/.bashrc  
 echo -e '\n# Anaconda Adam\nexport PATH=~/adam/bin:$PATH' >> ~/.bashrc 
+source ~/.bashrc  
 conda install -c anaconda libstdcxx-ng -y 
 conda install -c anaconda libgcc-ng -y  
 conda create -n myenv -c ome python=3.6 bzip2 expat libstdcxx-ng openssl libgcc zeroc-ice36-python omero-py -y   
