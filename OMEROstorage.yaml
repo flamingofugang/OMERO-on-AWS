@@ -1,0 +1,146 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Parameters:
+  EFSNameTag:
+    Description: The name of the EFS volume
+    Type: String
+    MinLength: '1'
+    Default: OMEROEFSvolume
+  VPCID:
+    Description: ID of the VPC
+    Type: AWS::EC2::VPC::Id
+  PrivateSubnet1Id:
+    Description: SubnetId, for Availability Zone 1 in the region in your VPC
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnet2Id:
+    Description: SubnetId, for Availability Zone 1 in the region in your VPC
+    Type: AWS::EC2::Subnet::Id
+  RDSDBInstanceClass:
+    Type: String
+    Default: "db.t3.medium"
+  RDSDBStorageType:
+    Type: String
+    Default: "gp2"
+  RDSDBAllocatedStorage:
+    Type: Number
+    Default: 20
+
+Resources:
+  OmeroSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: OMERO Security Group
+      GroupName: OmeroSecurityGroup
+      SecurityGroupIngress:
+        - CidrIp: '0.0.0.0/0'
+          Description: omeroserver:4063/tcp
+          FromPort: 4063
+          IpProtocol: TCP
+          ToPort: 4063
+        - CidrIp: '0.0.0.0/0'
+          Description: omeroserver:4064/tcp
+          FromPort: 4064
+          IpProtocol: TCP
+          ToPort: 4064
+        - CidrIp: '0.0.0.0/0'
+          Description: omeroweb:4080/tcp
+          FromPort: 4080
+          IpProtocol: TCP
+          ToPort: 4080
+        - CidrIp: '0.0.0.0/0'
+          Description: ssh 
+          FromPort: 22
+          IpProtocol: TCP
+          ToPort: 22
+      Tags:
+        - Key: project
+          Value: omero-on-aws
+        - Key: network
+          Value: omero
+      VpcId: !Ref VPCID
+  OmeroSecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Allow communication within omero network
+      GroupId: !Ref OmeroSecurityGroup
+      IpProtocol: '-1'
+      SourceSecurityGroupId: !Ref OmeroSecurityGroup
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: RDS Security Group
+      GroupName: RDSSecurityGroup
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref OmeroSecurityGroup
+          Description: postgres:5432/tcp
+          FromPort: 5432
+          IpProtocol: TCP
+          ToPort: 5432
+      Tags:
+        - Key: project
+          Value: omero-on-aws
+        - Key: network
+          Value: rds
+      VpcId: !Ref VPCID
+  EFSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: EFS Security Group
+      GroupName: EFSSecurityGroup
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref OmeroSecurityGroup
+          Description: efs:4063/tcp
+          FromPort: 2049
+          IpProtocol: TCP
+          ToPort: 2049
+      Tags:
+        - Key: project
+          Value: omero-on-aws
+        - Key: network
+          Value: efs
+      VpcId: !Ref VPCID
+
+  FileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      Encrypted: True
+      FileSystemTags:
+        - Key: Name
+          Value: !Ref 'EFSNameTag'
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: DBSubnetGroup for RDS instances
+      SubnetIds:
+        - !Ref PrivateSubnet1Id
+        - !Ref PrivateSubnet2Id
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: omero-instance
+      DBName: omero
+      DBInstanceClass: !Ref RDSDBInstanceClass
+      StorageType: !Ref RDSDBStorageType
+      AllocatedStorage: !Ref RDSDBAllocatedStorage
+      Engine: postgres
+      EngineVersion: 11
+      MasterUsername: omero
+      MasterUserPassword: omeromaster
+      PubliclyAccessible: True
+      Tags:
+        - Key: project
+          Value: omero-on-aws
+      VPCSecurityGroups: 
+        - !Ref RDSSecurityGroup
+      DBSubnetGroupName: !Ref DBSubnetGroup
+
+Outputs:
+  EFSFileSystemID:
+    Value: !Ref FileSystem
+  OmeroSecurityGroup:
+    Value: !Ref OmeroSecurityGroup
+  EFSSecurityGroup:
+    Value: !Ref EFSSecurityGroup
+  RDSEndpointAddress:
+    Value: !GetAtt 'RDSInstance.Endpoint.Address'
