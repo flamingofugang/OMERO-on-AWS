@@ -15,6 +15,19 @@ Parameters:
   PrivateSubnet2Id:
     Description: SubnetId, for Availability Zone 1 in the region in your VPC
     Type: AWS::EC2::Subnet::Id
+  CIDRblock4OMEROSecurityGroup:
+    Type: String
+    Default: '0.0.0.0/0'
+  EnableEFSBackup:
+    Type: String
+    Description: whether enable EFS backup or not. EFS backup has extra associated cost.
+    Default: ENABLED
+    AllowedValues: [ENABLED, DISABLED]
+  EFSStorageInfrequentAcessAfter:
+    Type: String
+    Description: A value that describes the period of time that a file is not accessed, after which it transitions to the IA storage class.
+    Default: AFTER_90_DAYS
+    AllowedValues: [AFTER_14_DAYS, AFTER_30_DAYS, AFTER_60_DAYS, AFTER_7_DAYS, AFTER_90_DAYS]
   RDSDBInstanceClass:
     Type: String
     Default: "db.t3.medium"
@@ -32,22 +45,22 @@ Resources:
       GroupDescription: OMERO Security Group
       GroupName: OmeroSecurityGroup
       SecurityGroupIngress:
-        - CidrIp: '0.0.0.0/0'
+        - CidrIp: !Ref CIDRblock4OMEROSecurityGroup
           Description: omeroserver:4063/tcp
           FromPort: 4063
           IpProtocol: TCP
           ToPort: 4063
-        - CidrIp: '0.0.0.0/0'
+        - CidrIp: !Ref CIDRblock4OMEROSecurityGroup
           Description: omeroserver:4064/tcp
           FromPort: 4064
           IpProtocol: TCP
           ToPort: 4064
-        - CidrIp: '0.0.0.0/0'
+        - CidrIp: !Ref CIDRblock4OMEROSecurityGroup
           Description: omeroweb:4080/tcp
           FromPort: 4080
           IpProtocol: TCP
           ToPort: 4080
-        - CidrIp: '0.0.0.0/0'
+        - CidrIp: !Ref CIDRblock4OMEROSecurityGroup
           Description: ssh 
           FromPort: 22
           IpProtocol: TCP
@@ -102,8 +115,13 @@ Resources:
 
   FileSystem:
     Type: AWS::EFS::FileSystem
+    DeletionPolicy: Retain
     Properties:
       Encrypted: True
+      BackupPolicy: 
+        Status: !Ref EnableEFSBackup
+      LifecyclePolicies:
+        - TransitionToIA: !Ref EFSStorageInfrequentAcessAfter
       FileSystemTags:
         - Key: Name
           Value: !Ref 'EFSNameTag'
@@ -127,7 +145,8 @@ Resources:
       EngineVersion: 11
       MasterUsername: omero
       MasterUserPassword: omeromaster
-      PubliclyAccessible: True
+      PubliclyAccessible: False
+      MultiAZ: True
       Tags:
         - Key: project
           Value: omero-on-aws
