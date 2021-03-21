@@ -3,8 +3,8 @@ Conditions:
   CreateLoadBalancer: !Equals
     - ''
     - !Ref 'ParameterLoadBalancerARN'
-Description: CloudFormation template created by Docker for deploying applications
-  on Amazon ECS
+Description: CloudFormation template to deploy OMERO Web and Server on AWS ECS
+
 Parameters:
   ParameterLoadBalancerARN:
     Description: Name of the LoadBalancer to connect to (optional)
@@ -12,8 +12,11 @@ Parameters:
   VPCID:
     Description: ID of the VPC
     Type: AWS::EC2::VPC::Id
-  PublicSubnetId:
-    Description: SubnetId, for Availability Zone 2 in the region in your VPC
+  PublicSubnet1Id:
+    Description: SubnetId, for Availability Zone 1 in the region in your VPC. The only one OMERO Server instance is deployed in this subnet.
+    Type: AWS::EC2::Subnet::Id
+  PublicSubnet2Id:
+    Description: SubnetId, for Availability Zone 2 in the region in your VPC. None of OMERO Server instance is deployed in this subnet.
     Type: AWS::EC2::Subnet::Id
   OmeroSecurityGroup:
     Description: Security group for OMERO web and service containers
@@ -33,16 +36,9 @@ Parameters:
   RDSEndpointAddress:
     Type: String
     Description: The RDS database endpoinst address
-  InstanceType:
-    Description: EC2 instance type
-    Type: String
-    Default: m4.large
-    AllowedValues: [t2.large, m3.large,
-      m3.xlarge, m3.2xlarge, m4.large, m4.xlarge, m4.2xlarge, m4.4xlarge, m4.10xlarge,
-      c4.large, c4.xlarge, c4.2xlarge, c4.4xlarge, c4.8xlarge, c3.large, c3.xlarge,
-      c3.2xlarge, c3.4xlarge, c3.8xlarge, r3.large, r3.xlarge, r3.2xlarge, r3.4xlarge,
-      r3.8xlarge, i2.xlarge, i2.2xlarge, i2.4xlarge, i2.8xlarge]
-    ConstraintDescription: Please choose a valid instance type.
+  NumberofWebInstances:
+    Type: Number
+    Default: 2
   OMEROWebContainerCPU:
     Description: The number of cpu units the Amazon ECS container agent will reserve for the container.
     Type: Number
@@ -53,17 +49,34 @@ Parameters:
     Type: Number
     Default: 4096
     AllowedValues: [512, 1024, 2048, 3072, 4096, 5120, 6144, 7168, 8192, 9216, 10240, 11264, 12288, 13312, 14336, 15360, 16384, 30720]
+  InstanceType:
+    Description: EC2 instance type
+    Type: String
+    Default: m4.xlarge
+    AllowedValues: [t2.large, m3.large,
+      m3.xlarge, m3.2xlarge, m4.large, m4.xlarge, m4.2xlarge, m4.4xlarge, m4.10xlarge,
+      c4.large, c4.xlarge, c4.2xlarge, c4.4xlarge, c4.8xlarge, c3.large, c3.xlarge,
+      c3.2xlarge, c3.4xlarge, c3.8xlarge, r3.large, r3.xlarge, r3.2xlarge, r3.4xlarge,
+      r3.8xlarge, i2.xlarge, i2.2xlarge, i2.4xlarge, i2.8xlarge]
+    ConstraintDescription: Please choose a valid instance type.
   OMEROServerContainerCPU:
     Description: The number of cpu units the Amazon ECS container agent will reserve for the container.
     Type: Number
-    Default: 2048
+    Default: 4096
     AllowedValues: [256, 512, 1024, 2048, 4096]
   OMEROServerContainerMemory:
     Description: The amount (in MiB) of memory to present to the container. . Memory should be at least two times of vCPU unit according to documentation.
     Type: Number
-    Default: 4096
+    Default: 10240
     AllowedValues: [512, 1024, 2048, 3072, 4096, 5120, 6144, 7168, 8192, 9216, 10240, 11264, 12288, 13312, 14336, 15360, 16384, 30720]
-
+  DBUser:
+    Type: String
+    Default: omero
+    Description: OMERO Database User
+  RDSDatabaseSecret: 
+    Type: String
+    Description: OMERO Database Password
+    Default: RDSDatabaseSecret
 
 Mappings:
   AWSRegionToAMI:
@@ -154,7 +167,8 @@ Resources:
       Name: OMEROLoadBalancer
       Scheme: internet-facing
       Subnets:
-        - !Ref 'PublicSubnetId'
+        - !Ref 'PublicSubnet1Id'
+        - !Ref 'PublicSubnet2Id'
       Tags:
         - Key: project
           Value: omero-on-aws
@@ -208,7 +222,7 @@ Resources:
     Type: AWS::EFS::MountTarget
     Properties:
       FileSystemId: !Ref EFSFileSystem
-      SubnetId: !Ref PublicSubnetId
+      SubnetId: !Ref PublicSubnet1Id
       SecurityGroups:
         - !Ref EFSSecurityGroup
   NFSAccessPoint:
@@ -246,7 +260,7 @@ Resources:
           SecurityGroups:
             - !Ref OmeroSecurityGroup
           Subnets:
-            - !Ref 'PublicSubnetId'
+            - !Ref 'PublicSubnet1Id'
       PropagateTags: SERVICE
       SchedulingStrategy: REPLICA
       ServiceRegistries:
@@ -314,9 +328,9 @@ Resources:
             - Name: CONFIG_omero_db_host
               Value: !Ref RDSEndpointAddress
             - Name: CONFIG_omero_db_user
-              Value: omero
+              Value: !Ref DBUser
             - Name: CONFIG_omero_db_pass
-              Value: omeromaster
+              Value: !Join ['', ['{{resolve:secretsmanager:', !Ref RDSDatabaseSecret, ':SecretString:password}}' ]]
             - Name: CONFIG_omero_db_name
               Value: omero
             - Name: LOCALDOMAIN
@@ -396,7 +410,7 @@ Resources:
       - MountTarget
     Properties:
       VPCZoneIdentifier:
-        - !Ref PublicSubnetId
+        - !Ref PublicSubnet1Id
       LaunchConfigurationName: !Ref 'ContainerInstances'
       MinSize: '1'
       MaxSize: '1'
@@ -455,7 +469,7 @@ Resources:
         MinimumHealthyPercent: 100
       DeploymentController:
         Type: ECS
-      DesiredCount: 1
+      DesiredCount: !Ref NumberofWebInstances
       LaunchType: FARGATE
       LoadBalancers:
         - ContainerName: omeroweb
@@ -467,7 +481,8 @@ Resources:
           SecurityGroups:
             - !Ref OmeroSecurityGroup
           Subnets:
-            - !Ref 'PublicSubnetId'
+            - !Ref 'PublicSubnet1Id'
+            - !Ref 'PublicSubnet2Id'
       PropagateTags: SERVICE
       SchedulingStrategy: REPLICA
       ServiceRegistries:
