@@ -186,6 +186,9 @@ Resources:
         - !Ref RDSSecurityGroup
       DBSubnetGroupName: !Ref DBSubnetGroup
       BackupRetentionPeriod: !Ref RDSDBBackupRetentionDays
+      Tags:
+        - Key: project
+          Value: omero-on-aws
 
 Outputs:
   EFSFileSystemID:
