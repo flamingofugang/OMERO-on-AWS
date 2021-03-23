@@ -24,9 +24,6 @@ Parameters:
   EFSSecurityGroup:
     Description: Security group for EFS
     Type: AWS::EC2::SecurityGroup::Id 
-  KeyName:
-    Type: AWS::EC2::KeyPair::KeyName
-    Description: Name of an existing EC2 KeyPair to enable SSH access to the ECS instances.
   EFSFileSystem:
     Description: The ID of the EFS volume
     Type: String
@@ -49,16 +46,6 @@ Parameters:
     Type: Number
     Default: 4096
     AllowedValues: [512, 1024, 2048, 3072, 4096, 5120, 6144, 7168, 8192, 9216, 10240, 11264, 12288, 13312, 14336, 15360, 16384, 30720]
-  InstanceType:
-    Description: EC2 instance type
-    Type: String
-    Default: m4.xlarge
-    AllowedValues: [t2.large, m3.large,
-      m3.xlarge, m3.2xlarge, m4.large, m4.xlarge, m4.2xlarge, m4.4xlarge, m4.10xlarge,
-      c4.large, c4.xlarge, c4.2xlarge, c4.4xlarge, c4.8xlarge, c3.large, c3.xlarge,
-      c3.2xlarge, c3.4xlarge, c3.8xlarge, r3.large, r3.xlarge, r3.2xlarge, r3.4xlarge,
-      r3.8xlarge, i2.xlarge, i2.2xlarge, i2.4xlarge, i2.8xlarge]
-    ConstraintDescription: Please choose a valid instance type.
   OMEROServerContainerCPU:
     Description: The number of cpu units the Amazon ECS container agent will reserve for the container.
     Type: Number
@@ -242,6 +229,19 @@ Resources:
         Uid: "0"
       RootDirectory:
         Path: "/"
+  # NFSAccessPoint:
+  #   Type: AWS::EFS::AccessPoint
+  #   Properties: 
+  #     FileSystemId: !Ref EFSFileSystem
+  #     PosixUser:
+  #       Uid: "10000"
+  #       Gid: "10000"
+  #     RootDirectory:
+  #       CreationInfo:
+  #         OwnerGid: "10000"
+  #         OwnerUid: "10000"
+  #         Permissions: "0755"
+  #       Path: "/"
 
   OmeroserverService:
     Type: AWS::ECS::Service
@@ -249,6 +249,7 @@ Resources:
       - OmeroserverTCP4063Listener
       - OmeroserverTCP4064Listener
       - OmeroserverTaskDefinition
+      - MountTarget
     Properties:
       Cluster: !Ref 'OMEROECSCluster'
       DeploymentConfiguration:
@@ -257,7 +258,7 @@ Resources:
       DeploymentController:
         Type: ECS
       DesiredCount: 1
-      LaunchType: EC2
+      LaunchType: FARGATE
       LoadBalancers:
         - ContainerName: omeroserver
           ContainerPort: 4063
@@ -267,7 +268,7 @@ Resources:
           TargetGroupArn: !Ref 'OmeroserverTCP4064TargetGroup'
       NetworkConfiguration:
         AwsvpcConfiguration:
-          AssignPublicIp: DISABLED
+          AssignPublicIp: ENABLED
           SecurityGroups:
             - !Ref OmeroSecurityGroup
           Subnets:
@@ -387,7 +388,7 @@ Resources:
       Family: omero-server
       NetworkMode: awsvpc
       RequiresCompatibilities:
-        - EC2
+        - FARGATE
   OmeroserverTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -403,10 +404,10 @@ Resources:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
       Tags:
-      - Key: project
-        Value: omero-on-aws
-      - Key: service
-        Value: omeroserver
+        - Key: project
+          Value: omero-on-aws
+        - Key: service
+          Value: omeroserver
   OmeroserverTaskRole:
     Type: AWS::IAM::Role
     Properties:
@@ -430,7 +431,7 @@ Resources:
                   StringEquals:
                     elasticfilesystem:AccessPointArn: !Ref NFSAccessPoint
                 Effect: Allow
-                Principal: {} 
+                Principal: {}
                 Resource:
                   - !Join
                     - ''
@@ -445,64 +446,6 @@ Resources:
         Value: omero-on-aws
       - Key: service
         Value: omeroserver
-  ECSAutoScalingGroup:
-    Type: AWS::AutoScaling::AutoScalingGroup
-    DependsOn:
-      - MountTarget
-    Properties:
-      VPCZoneIdentifier:
-        - !Ref PublicSubnet1Id
-      LaunchConfigurationName: !Ref 'ContainerInstances'
-      MinSize: '1'
-      MaxSize: '1'
-      DesiredCapacity: '1'
-    CreationPolicy:
-      ResourceSignal:
-        Timeout: PT15M
-    UpdatePolicy:
-      AutoScalingReplacingUpdate:
-        WillReplace: 'true'
-  ContainerInstances:
-    Type: AWS::AutoScaling::LaunchConfiguration
-    Properties:
-      ImageId: !FindInMap [AWSRegionToAMI, !Ref 'AWS::Region', AMIID]
-      SecurityGroups:
-            - !Ref OmeroSecurityGroup
-      InstanceType: !Ref 'InstanceType'
-      IamInstanceProfile: !Ref 'EC2InstanceProfile'
-      KeyName: !Ref 'KeyName'
-      UserData:
-        Fn::Base64: !Sub |
-          #!/bin/bash -xe
-          echo ECS_CLUSTER=${OMEROECSCluster} >> /etc/ecs/ecs.config
-          yum install -y aws-cfn-bootstrap bzip2 unzip
-          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
-  EC2Role:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - ec2.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Path: /
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
-        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
-        - arn:aws:iam::aws:policy/AmazonS3FullAccess
-      Tags:
-      - Key: project
-        Value: omero-on-aws
-      - Key: service
-        Value: omeroserver
-  EC2InstanceProfile:
-    Type: AWS::IAM::InstanceProfile
-    Properties:
-      Path: /
-      Roles: [!Ref 'EC2Role']
 
   OmerowebService:
     Type: AWS::ECS::Service
@@ -562,6 +505,8 @@ Resources:
       Tags:
         - Key: project
           Value: omero-on-aws
+        - Key: service
+          Value: omeroweb
       TargetType: ip
       VpcId: !Ref VPCID
   OmerowebTaskDefinition:
