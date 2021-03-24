@@ -44,6 +44,7 @@ Parameters:
     Type: String
     Default: omero
     Description: OMERO Database User
+    NoEcho: true
   RDSDBBackupRetentionDays:
     Type: Number
     Default: 30
@@ -91,10 +92,15 @@ Resources:
           IpProtocol: TCP
           ToPort: 4080
         - CidrIp: !Ref CIDRblock4OMEROSecurityGroup
-          Description: ssh 
+          Description: ssh
           FromPort: 22
           IpProtocol: TCP
           ToPort: 22
+        - CidrIp: !Ref CIDRblock4OMEROSecurityGroup
+          Description: omeroweb:443/https
+          FromPort: 443
+          IpProtocol: TCP
+          ToPort: 443
       Tags:
         - Key: project
           Value: omero-on-aws

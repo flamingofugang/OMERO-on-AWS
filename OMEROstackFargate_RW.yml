@@ -122,18 +122,16 @@ Resources:
   ECScontainerStack:
     Type: 'AWS::CloudFormation::Stack'
     Properties:
-      TemplateURL: https://omero-on-aws.s3-us-west-1.amazonaws.com/OMEROonEC2EFSRDS_RW.yml
+      TemplateURL: https://omero-on-aws.s3-us-west-1.amazonaws.com/OMEROonFargateEFSRDS_RW.yml
       Parameters:
         ParameterLoadBalancerARN: !Ref ExistingLoadBalancerARN
         VPCID: !Ref OMEROVPCID
         PublicSubnet1Id: !Ref ECSPublicSubnet1Id
         PublicSubnet2Id: !Ref ECSPublicSubnet2Id
-        KeyName: !Ref EC2KeyName
         LBAccessLogBucketName: !Ref LoadBalancerAccessLogBucketName
         NumberofWebInstances: !Ref CountofWebInstances
         OMEROWebContainerCPU: !Ref OMEROWebContainerCPUSize
         OMEROWebContainerMemory: !Ref OMEROWebContainerMemorySize
-        InstanceType: !Ref EC2InstanceType
         OMEROServerContainerCPU: !Ref OMEROServerContainerCPUSize
         OMEROServerContainerMemory: !Ref OMEROServerContainerMemorySize
         DBUser: !Ref RDSDBUserName

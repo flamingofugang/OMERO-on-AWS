@@ -60,6 +60,7 @@ Parameters:
     Type: String
     Default: omero
     Description: OMERO Database User
+    NoEcho: true
   RDSDatabaseSecret: 
     Type: String
     Description: OMERO Database Password
@@ -431,7 +432,6 @@ Resources:
                   StringEquals:
                     elasticfilesystem:AccessPointArn: !Ref NFSAccessPoint
                 Effect: Allow
-                Principal: {}
                 Resource:
                   - !Join
                     - ''
