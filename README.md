@@ -62,6 +62,14 @@ and then use [OMERO client CLI](https://docs.openmicroscopy.org/omero/5.6.1/user
 provide the DNSname:4046, root and omero
 `omero import ./xxxxxx.svs`
 
+Another Hight Availability (HA) deployment of OMERO with single read write server on ECS Fargate can be used for 1-click deployment:
+
+[![launchstackbutton](Figures/launchstack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/template?stackName=omerostack&templateURL=https://omero-on-aws.s3-us-west-1.amazonaws.com/OMEROstackFargate_RW.yml)
+
+The diagram of Architecture is here:
+![arch](Figures/omero-on-aws-rw-fargate.jpg)
+
+
 
 The following blog posts and tutorials can be used for references:
 1. [Tutorial on EFS for ECS EC2 launch type](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/tutorial-efs-volumes.html).  
