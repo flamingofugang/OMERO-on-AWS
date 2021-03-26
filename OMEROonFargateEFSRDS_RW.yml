@@ -67,39 +67,33 @@ Parameters:
     Default: RDSDatabaseSecret
 
 Mappings:
-  AWSRegionToAMI:
+  RegionELBAccountIdMap:
     us-east-1:
-      AMIID: ami-0c1f575380708aa63
-    us-east-2:
-      AMIID: ami-015a2afe7e1a8af56
+      AccountId: '127311923021'
     us-west-1:
-      AMIID: ami-032a827d612b78a50
+      AccountId: '027434742980'
     us-west-2:
-      AMIID: ami-05edb14e89a5b98f3
-    ap-northeast-1:
-      AMIID: ami-06ee72c3360fd7fad
-    ap-northeast-2:
-      AMIID: ami-0cfc5eb79eceeeec9
-    ap-south-1:
-      AMIID: ami-078902ae8103daac8
-    ap-southeast-1:
-      AMIID: ami-09dd721a797640468
-    ap-southeast-2:
-      AMIID: ami-040bd2e2325535b3d
-    ca-central-1:
-      AMIID: ami-0a06b44c462364156
-    eu-central-1:
-      AMIID: ami-09509e8f8dea8ab83
-    eu-north-1:
-      AMIID: ami-015b157d082fd4e0d
+      AccountId: '797873946194'
     eu-west-1:
-      AMIID: ami-0489c3efb4fe85f5d
-    eu-west-2:
-      AMIID: ami-037dd70536680c11f
-    eu-west-3:
-      AMIID: ami-0182381900083ba64
+      AccountId: '156460612806'
+    ap-northeast-1:
+      AccountId: '582318560864'
+    ap-northeast-2:
+      AccountId: '600734575887'
+    ap-southeast-1:
+      AccountId: '114774131450'
+    ap-southeast-2:
+      AccountId: '783225319266'
+    ap-south-1:
+      AccountId: '718504428378'
+    us-east-2:
+      AccountId: '033677994240'
     sa-east-1:
-      AMIID: ami-05313c3a9e9148109
+      AccountId: '507241528517'
+    cn-north-1:
+      AccountId: '638102146993'
+    eu-central-1:
+      AccountId: '054676820928'
 
 Resources:
   CloudMap:
@@ -194,7 +188,7 @@ Resources:
             Resource: 
               - !Sub '${LBAccessLogBucket.Arn}/*'
             Principal: 
-              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+              AWS: !FindInMap [RegionELBAccountIdMap, !Ref 'AWS::Region', AccountId]
           - Action:
               - 's3:PutObject'
             Effect: Allow
@@ -230,19 +224,6 @@ Resources:
         Uid: "0"
       RootDirectory:
         Path: "/"
-  # NFSAccessPoint:
-  #   Type: AWS::EFS::AccessPoint
-  #   Properties: 
-  #     FileSystemId: !Ref EFSFileSystem
-  #     PosixUser:
-  #       Uid: "10000"
-  #       Gid: "10000"
-  #     RootDirectory:
-  #       CreationInfo:
-  #         OwnerGid: "10000"
-  #         OwnerUid: "10000"
-  #         Permissions: "0755"
-  #       Path: "/"
 
   OmeroserverService:
     Type: AWS::ECS::Service
